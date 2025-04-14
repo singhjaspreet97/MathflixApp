@@ -13,7 +13,7 @@ export default function LoginScreen({ navigation }) {
     }
 
     try {
-      const response = await fetch('https://6934-173-32-216-255.ngrok-free.app/api/login', {
+      const response = await fetch('https://innocent-adversely-meerkat.ngrok-free.app/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })

@@ -7,11 +7,12 @@ const bcrypt = require('bcrypt');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const User = require('./models/user');
+const Blocklist = require('./models/Blocklist');
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
@@ -75,4 +76,45 @@ app.get('/api/user/:username/screen-time', async (req, res) => {
 // Server start
 app.listen(PORT, () => {
   console.log(`🚀 Backend running at http://localhost:${PORT}`);
+});
+
+// Get all blocklists for a user
+app.get('/api/blocklists/:username', async (req, res) => {
+  const { username } = req.params;
+  try {
+    const lists = await Blocklist.find({ username });
+    res.json(lists);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Create or update a blocklist
+app.post('/api/blocklists', async (req, res) => {
+  const { username, name, apps } = req.body;
+  try {
+    const existing = await Blocklist.findOne({ username, name });
+    if (existing) {
+      existing.apps = apps;
+      await existing.save();
+      return res.json({ message: 'Updated successfully' });
+    } else {
+      const newList = new Blocklist({ username, name, apps });
+      await newList.save();
+      return res.status(201).json({ message: 'Created successfully' });
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Delete blocklist
+app.delete('/api/blocklists/:username/:name', async (req, res) => {
+  const { username, name } = req.params;
+  try {
+    await Blocklist.deleteOne({ username, name });
+    res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
 });

@@ -8,6 +8,9 @@ import LoginScreen from './screens/LoginScreen';
 import MenuScreen from './screens/MenuScreen';
 import WebViewScreen from './screens/WebViewScreen';
 import SelectAppsScreen from './screens/SelectAppsScreen';
+import StartSessionScreen from './screens/StartSessionScreen';
+import SessionDetailsScreen from './screens/SessionDetailsScreen';
+import EndSessionScreen from './screens/EndSessionScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,6 +23,9 @@ export default function App() {
         <Stack.Screen name="MockMenu" component={MenuScreen} />
         <Stack.Screen name="WebView" component={WebViewScreen} />
         <Stack.Screen name="SelectApps" component={SelectAppsScreen} />
+        <Stack.Screen name="StartSession" component={StartSessionScreen} />
+        <Stack.Screen name="SessionDetails" component={SessionDetailsScreen} />
+        <Stack.Screen name="EndSession" component={EndSessionScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

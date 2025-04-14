@@ -5,27 +5,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MenuScreen = ({ navigation }) => {
   const [allowedTime, setAllowedTime] = useState('Loading...');
+  const [activeSession, setActiveSession] = useState(null);
 
   useEffect(() => {
-    const fetchAllowedTime = async () => {
+    const fetchData = async () => {
       try {
         const username = await AsyncStorage.getItem('username');
-        const response = await fetch(`https://6934-173-32-216-255.ngrok-free.app/api/user/${username}/screen-time`);
-        const data = await response.json();
 
-        if (response.ok) {
-          setAllowedTime(data.allowedTime !== undefined ? `${data.allowedTime} minutes` : 'N/A');
+        // Fetch allowedTime
+        const response = await fetch(`https://innocent-adversely-meerkat.ngrok-free.app/api/user/${username}/screen-time`);
+        const data = await response.json();
+        setAllowedTime(response.ok && data.allowedTime !== undefined ? `${data.allowedTime} minutes` : 'N/A');
+
+        // Fetch active session
+        const sessionData = await AsyncStorage.getItem(`activeSession_${username}`);
+        if (sessionData) {
+          setActiveSession(JSON.parse(sessionData));
         } else {
-          setAllowedTime('N/A');
+          setActiveSession(null);
         }
+
       } catch (error) {
-        console.error('Fetch screen time error:', error);
+        console.error('Error:', error);
         setAllowedTime('N/A');
+        setActiveSession(null);
       }
     };
 
-    fetchAllowedTime();
-  }, []);
+    const unsubscribe = navigation.addListener('focus', fetchData);
+    fetchData();
+
+    return unsubscribe;
+  }, [navigation]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'You have been logged out.', [
@@ -38,18 +49,30 @@ const MenuScreen = ({ navigation }) => {
       <Text style={styles.heading}>Mathflix Menu</Text>
       <Text style={styles.subText}>Screen Time: {allowedTime}</Text>
 
+      {activeSession && (
+        <TouchableOpacity
+          style={styles.sessionCard}
+          onPress={() => navigation.navigate('EndSession', { session: activeSession })}
+        >
+          <Text style={styles.sessionTitle}>Active Session</Text>
+          <Text style={styles.sessionSubtitle}>Blocklist: {activeSession.blocklistName}</Text>
+          <Text style={styles.sessionSubtitle}>Device: {activeSession.device}</Text>
+          <Text style={styles.sessionSubtitle}>Ends: {new Date(activeSession.end).toLocaleString()}</Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => navigation.navigate('StartSession')}
+      >
+        <Text style={styles.buttonText}>Select Session</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate('WebView')}
       >
         <Text style={styles.buttonText}>Open Quiz Portal</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('SelectApps')}
-      >
-        <Text style={styles.buttonText}>Select Apps to Block</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -80,6 +103,23 @@ const styles = StyleSheet.create({
     color: '#ccc',
     marginBottom: 30,
     textAlign: 'center',
+  },
+  sessionCard: {
+    backgroundColor: '#2e2e2e',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20
+  },
+  sessionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#00d4ff',
+    marginBottom: 6
+  },
+  sessionSubtitle: {
+    fontSize: 14,
+    color: '#ccc',
+    marginBottom: 2
   },
   button: {
     backgroundColor: '#8b5cf6',
