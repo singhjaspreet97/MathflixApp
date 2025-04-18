@@ -5,29 +5,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function EndSessionScreen({ route, navigation }) {
   const { session } = route.params;
-
   const handleEndSession = async () => {
-    Alert.alert(
-      'End Session',
-      'Do you want to end the session?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'End',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const username = await AsyncStorage.getItem('username');
-              await AsyncStorage.removeItem(`activeSession_${username}`);
-              navigation.goBack();
-            } catch (error) {
-              console.error('Failed to end session:', error);
-              Alert.alert('Error', 'Could not end the session.');
-            }
-          }
-        }
-      ]
-    );
+    try {
+      const username = await AsyncStorage.getItem('username');
+
+      await fetch(`https://innocent-adversely-meerkat.ngrok-free.app/api/active-session/${username}`, {
+        method: 'DELETE',
+      });
+
+      Alert.alert('Session Ended', 'The session has been successfully ended.', [
+        { text: 'OK', onPress: () => navigation.navigate('MockMenu') }
+      ]);
+      navigation.navigate('MockMenu', { refresh: true });
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      Alert.alert('Error', 'Could not end the session.');
+    }
   };
 
   return (

@@ -2,29 +2,75 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRef } from 'react';
 
 const MenuScreen = ({ navigation }) => {
   const [allowedTime, setAllowedTime] = useState('Loading...');
   const [activeSession, setActiveSession] = useState(null);
+  const [countdown, setCountdown] = useState('');
+  const [streamTimeLeft, setStreamTimeLeft] = useState(null);
+  const streamInterval = useRef(null);
+  const [shouldLaunchQuiz, setShouldLaunchQuiz] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const username = await AsyncStorage.getItem('username');
+        const token = await AsyncStorage.getItem('token');
+
+        // Fetch session first
+        const sessionResponse = await fetch(`https://innocent-adversely-meerkat.ngrok-free.app/api/active-session/${username}`, {
+          headers: { Authorization: token }
+        });
+        const session = await sessionResponse.json();
+
+        if (session && new Date(session.end) < new Date()) {
+          await fetch(`https://innocent-adversely-meerkat.ngrok-free.app/api/active-session/${username}`, {
+            method: 'DELETE',
+          });
+          setActiveSession(null);
+          await AsyncStorage.removeItem('streamingStartTime');
+        } else {
+          setActiveSession(session);
+        }
 
         // Fetch allowedTime
         const response = await fetch(`https://innocent-adversely-meerkat.ngrok-free.app/api/user/${username}/screen-time`);
         const data = await response.json();
-        setAllowedTime(response.ok && data.allowedTime !== undefined ? `${data.allowedTime} minutes` : 'N/A');
 
-        // Fetch active session
-        const sessionData = await AsyncStorage.getItem(`activeSession_${username}`);
-        if (sessionData) {
-          setActiveSession(JSON.parse(sessionData));
-        } else {
-          setActiveSession(null);
+        if (response.ok && data.allowedTime !== undefined) {
+          setAllowedTime(`${data.allowedTime} minutes`);
+
+          const total = data.allowedTime * 60 * 1000;
+          let remaining = total;
+
+          const storedStart = await AsyncStorage.getItem('streamingStartTime');
+          if (storedStart) {
+            const elapsed = Date.now() - parseInt(storedStart);
+            remaining = total - elapsed;
+          } else {
+            await AsyncStorage.setItem('streamingStartTime', Date.now().toString());
+          }
+
+          if (remaining <= 0) {
+            setStreamTimeLeft(0);
+            setShouldLaunchQuiz(true);
+          } else {
+            setStreamTimeLeft(remaining);
+
+            if (streamInterval.current) clearInterval(streamInterval.current);
+            streamInterval.current = setInterval(() => {
+              setStreamTimeLeft(prev => {
+                if (prev <= 1000) {
+                  clearInterval(streamInterval.current);
+                  setShouldLaunchQuiz(true);
+                  return 0;
+                }
+                return prev - 1000;
+              });
+            }, 1000);
+          }
         }
-
       } catch (error) {
         console.error('Error:', error);
         setAllowedTime('N/A');
@@ -37,6 +83,84 @@ const MenuScreen = ({ navigation }) => {
 
     return unsubscribe;
   }, [navigation]);
+
+  // 🆕 Countdown updater
+  useEffect(() => {
+    let interval;
+
+    if (activeSession) {
+      const updateCountdown = () => {
+        const now = new Date();
+        const end = new Date(activeSession.end);
+        const diff = end - now;
+
+        if (diff <= 0) {
+          setCountdown('Session ended');
+          clearInterval(interval);
+          setActiveSession(null);
+          return;
+        }
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        setCountdown(`${hours}h ${minutes}m ${seconds}s`);
+      };
+
+      updateCountdown();
+      interval = setInterval(updateCountdown, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [activeSession]);
+
+  useEffect(() => {
+    const launchQuiz = async () => {
+      if (shouldLaunchQuiz && activeSession) {
+        const username = await AsyncStorage.getItem('username');
+        await AsyncStorage.removeItem('streamingStartTime');
+        setActiveSession(null);
+        setShouldLaunchQuiz(false);
+        navigation.navigate("WebView", {
+          // url: `https://mathflix.from-ca.com/generate-token/${username}`
+          url: `http://10.0.0.192:3000/generate-token/${username}`
+        });
+        setShouldLaunchQuiz(false); // reset flag
+      }
+    };
+
+    launchQuiz();
+  }, [shouldLaunchQuiz]);
+
+  useEffect(() => {
+    if (!activeSession || allowedTime === 'N/A' || allowedTime === 'Loading...') return;
+
+    const minutesMatch = allowedTime.match(/^(\d+)\s+minutes$/);
+    if (!minutesMatch) return;
+
+    const allowedMinutes = parseInt(minutesMatch[1]);
+    const newTime = allowedMinutes * 60 * 1000;
+    setStreamTimeLeft(newTime);
+
+    // 🧼 Clear previous interval
+    if (streamInterval.current) clearInterval(streamInterval.current);
+
+    // ✅ Start fresh interval
+    streamInterval.current = setInterval(() => {
+      setStreamTimeLeft(prev => {
+        if (prev <= 1000) {
+          clearInterval(streamInterval.current);
+          setShouldLaunchQuiz(true);
+          return 0;
+        }
+        return prev - 1000;
+      });
+    }, 1000);
+
+    // 🧼 Cleanup on unmount
+    return () => clearInterval(streamInterval.current);
+  }, [allowedTime]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'You have been logged out.', [
@@ -58,6 +182,14 @@ const MenuScreen = ({ navigation }) => {
           <Text style={styles.sessionSubtitle}>Blocklist: {activeSession.blocklistName}</Text>
           <Text style={styles.sessionSubtitle}>Device: {activeSession.device}</Text>
           <Text style={styles.sessionSubtitle}>Ends: {new Date(activeSession.end).toLocaleString()}</Text>
+          <Text style={styles.sessionSubtitle}>⏳ Time Left: {countdown}</Text>
+          <Text style={styles.sessionSubtitle}>
+            🎯 Streaming Time Left: {
+              streamTimeLeft !== null
+                ? `${Math.floor(streamTimeLeft / 60000)}m ${Math.floor((streamTimeLeft % 60000) / 1000)}s`
+                : 'Calculating...'
+            }
+          </Text>
         </TouchableOpacity>
       )}
 

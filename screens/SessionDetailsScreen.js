@@ -59,21 +59,32 @@ export default function SessionDetailsScreen({ route, navigation }) {
 
   const handleStartSession = async () => {
     try {
-        const username = await AsyncStorage.getItem('username');
-        const sessionInfo = {
+      const username = await AsyncStorage.getItem('username');
+      const sessionInfo = {
+        username,
         blocklistName,
         device: deviceName,
         start: startDate.toISOString(),
         end: endDate.toISOString(),
         allowedTime
-        };
-        await AsyncStorage.setItem(`activeSession_${username}`, JSON.stringify(sessionInfo));
-        Alert.alert('Session Started!', 'Your focus session is now active.', [
+      };
+
+      const response = await fetch('https://innocent-adversely-meerkat.ngrok-free.app/api/active-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionInfo)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create session');
+      }
+
+      Alert.alert('Session Started!', 'Your focus session is now active.', [
         { text: 'OK', onPress: () => navigation.navigate('MockMenu') }
-        ]);
+      ]);
     } catch (error) {
-        console.error('Failed to start session:', error);
-        Alert.alert('Error', 'Could not start the session.');
+      console.error('Failed to start session:', error);
+      Alert.alert('Error', 'Could not start the session.');
     }
   };
 

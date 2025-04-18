@@ -23,11 +23,12 @@ export default function LoginScreen({ navigation }) {
       console.log("Login API response:", data);
 
       if (response.ok) {
-        // await AsyncStorage.setItem('token', data.token);  // Optional: store token
+        await AsyncStorage.setItem('token', data.token);
         await AsyncStorage.setItem('username', data.username);
         Alert.alert('Login successful', `Welcome, ${data.username}`);
         navigation.replace('MockMenu');
       } else {
+        console.warn('Token missing in response:', data);
         Alert.alert('Login Failed', data.message || 'Try again');
       }
     } catch (error) {
